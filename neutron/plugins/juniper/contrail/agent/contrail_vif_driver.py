@@ -12,6 +12,7 @@
 # under the License.
 
 import ConfigParser
+import uuid
 
 from neutron.agent.linux import interface
 from neutron.agent.linux import ip_lib
@@ -87,15 +88,6 @@ class ContrailInterfaceDriver(interface.LinuxInterfaceDriver):
             return False
 
         return True
-
-    def _instance_lookup(self, instance_name):
-        """ lookup the instance."""
-        fq_name = instance_name.split(':')
-        try:
-            vm_instance = self._client.virtual_machine_read(fq_name=fq_name)
-            return vm_instance
-        except NoIdError:
-            pass
 
     def _instance_locate(self, port_obj):
         """ lookup the instance associated with the port object.
