@@ -95,7 +95,11 @@ class ContrailPlugin(db_base_plugin_v2.NeutronDbPluginV2,
                                            'admin_tenant_name',
                                            'default-domain')
         cls._tenants_api = '%s/tenants' % (cls._auth_url)
-        pass
+        
+        cls._auto_assign_fip = _read_cfg_boolean(cfg_parser, 'AUTO_FIP',
+                                                    'auto_assign_fip', False)
+        cls._default_fip_pool = _read_cfg(cfg_parser, 'AUTO_FIP',
+                                          'default_fip_pool', 'public')
     #end _parse_class_args
 
     @classmethod
@@ -936,6 +940,10 @@ class ContrailPlugin(db_base_plugin_v2.NeutronDbPluginV2,
         """
         try:
             cfgdb = ContrailPlugin._get_user_cfgdb(context)
+            if self._auto_assign_fip and 'device_id' in port['port']:
+                port['port']['auto_fip'] = True
+                port['port']['default_fip_pool'] = self._default_fip_pool
+
             port_info = cfgdb.port_create(port['port'])
 
             # verify transformation is conforming to api
@@ -978,6 +986,9 @@ class ContrailPlugin(db_base_plugin_v2.NeutronDbPluginV2,
         Updates the attributes of a port on the specified Virtual Network.
         """
         try:
+            if self._auto_assign_fip and 'device_id' in port['port']:
+                port['port']['auto_fip'] = True
+                port['port']['default_fip_pool'] = self._default_fip_pool
             cfgdb = ContrailPlugin._get_user_cfgdb(context)
             port_info = cfgdb.port_update(port_id, port['port'])
 

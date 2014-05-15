@@ -2649,6 +2649,31 @@ class DBInterface(object):
         return len(floatingip_info)
     #end floatingip_count
 
+    def _auto_assign_fip_to_port(self, port_q, port_obj):
+        """Create a floating ip and assign to the port."""
+        try:
+            # check if 'device_id' is a valid uuid.
+            # if it is a valid uuid, then most likely nova is creating
+            # the port for the vm.
+            uuid.UUID(port_q['device_id'])
+            net_fq_name = port_q['default_fip_pool'].split(':')
+            fip_net_obj = self._virtual_network_read(fq_name=net_fq_name)
+        except:
+            return
+        fip_q = port_q
+        fip_q['floating_network_id'] = fip_net_obj.uuid
+        fip_q['port_id'] = port_obj.uuid
+        if 'tenant_id' not in fip_q:
+            net_refs = port_obj.get_virtual_network_refs()
+            if net_refs:
+                net_id = net_refs[0]['uuid']
+                net_obj = self._virtual_network_read(net_id=net_id)
+                fip_q['tenant_id'] = net_obj.parent_uuid
+            else:
+                return
+        # create a floating ip and associate with the port_obj
+        fip_q = self.floatingip_create(fip_q)
+        
     # port api handlers
     def port_create(self, port_q):
         net_id = port_q['network_id']
@@ -2707,6 +2732,10 @@ class DBInterface(object):
         #self._db_cache['q_ports'][port_id] = ret_port_q
         self._set_obj_tenant_id(port_id, proj_id)
 
+        # associate floating ip if auto_fip is set
+        if 'auto_fip' in port_q:
+            self._auto_assign_fip_to_port(port_q, port_obj)            
+
         # update cache on successful creation
         tenant_id = proj_id.replace('-', '')
         if tenant_id not in self._db_cache['q_tenant_port_count']:
@@ -2739,6 +2768,10 @@ class DBInterface(object):
         port_q['id'] = port_id
         port_obj = self._port_neutron_to_vnc(port_q, None, UPDATE)
         self._virtual_machine_interface_update(port_obj)
+
+        # associate floating ip if auto_fip is set
+        if 'auto_fip' in port_q:
+            self._auto_assign_fip_to_port(port_q, port_obj)
 
         ret_port_q = self._port_vnc_to_neutron(port_obj)
         self._db_cache['q_ports'][port_id] = ret_port_q
